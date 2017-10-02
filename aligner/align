@@ -2,6 +2,7 @@
 import optparse
 import sys
 from collections import defaultdict
+import random
 
 optparser = optparse.OptionParser()
 optparser.add_option("-d", "--data", dest="train", default="data/hansards", help="Data filename prefix (default=data)")
@@ -13,31 +14,95 @@ optparser.add_option("-n", "--num_sentences", dest="num_sents", default=sys.maxi
 f_data = "%s.%s" % (opts.train, opts.french)
 e_data = "%s.%s" % (opts.train, opts.english)
 
-sys.stderr.write("Training with Dice's coefficient...")
+sys.stderr.write("Training with EM...")
 bitext = [[sentence.strip().split() for sentence in pair] for pair in zip(open(f_data), open(e_data))[:opts.num_sents]]
+total_f = defaultdict(float)
+ef_trans_prob = defaultdict(float)
+ef_count = defaultdict(float)
+f_words = set()
+e_words = set()
+epochs = 10
+
+# 25 epochs: 
+# Precision = 0.689076
+# Recall = 0.585799
+# AER = 0.361151
+
+# uniformly set transitional probabilities
+for (n, (f, e)) in enumerate(bitext):  
+  for e_word in e:
+    e_words.add(e_word)
+    for f_word in f:
+      f_words.add(f_word)
+
+for f_word in f_words:
+  for e_word in e_words:
+    ef_trans_prob[(e_word,f_word)] = random.uniform(0,1)
+
+for epoch in range(epochs):
+  # intitialize
+  for f_word in f_words:
+    total_f[f_word] = 0
+    for e_word in e_words:
+      ef_count[(e_word,f_word)] = 0
+  
+  for (n, (f, e)) in enumerate(bitext):
+    # compute normalization
+    s_total = {}
+
+    for e_word in e:
+      s_total[e_word] = 0
+      for f_word in f:
+        s_total[e_word] += ef_trans_prob[(e_word,f_word)]
+
+    # collect counts
+    for e_word in e:
+      for f_word in f:
+        ef_count[(e_word,f_word)] += ef_trans_prob[(e_word,f_word)]/s_total[e_word]
+        total_f[f_word] += ef_trans_prob[(e_word,f_word)]/s_total[e_word]
+
+  # estimate probabilities 
+  for f_word in f_words:
+    for e_word in e_words:
+      ef_trans_prob[(e_word,f_word)] = ef_count[(e_word,f_word)]/total_f[f_word]
+
+next_line = False
+for (f, e) in bitext:
+  for (i, f_word) in enumerate(f): 
+    for (j, e_word) in enumerate(e):
+      if ef_trans_prob[(e_word,f_word)] >= opts.threshold:
+        sys.stdout.write("%i-%i " % (i,j))
+        next_line = True
+  if next_line:
+    sys.stdout.write("\n")
+    next_line = False
+  
+"""  
 f_count = defaultdict(int)
 e_count = defaultdict(int)
 fe_count = defaultdict(int)
+
 for (n, (f, e)) in enumerate(bitext):
-  for f_i in set(f):
-    f_count[f_i] += 1
-    for e_j in set(e):
-      fe_count[(f_i,e_j)] += 1
-  for e_j in set(e):
-    e_count[e_j] += 1
+  for f_word in set(f):
+    f_count[f_word] += 1
+    for e_word in set(e):
+      fe_count[(f_word,e_word)] += 1
+  for e_word in set(e):
+    e_count[e_word] += 1
   if n % 500 == 0:
     sys.stderr.write(".")
 
 dice = defaultdict(int)
-for (k, (f_i, e_j)) in enumerate(fe_count.keys()):
-  dice[(f_i,e_j)] = 2.0 * fe_count[(f_i, e_j)] / (f_count[f_i] + e_count[e_j])
+for (k, (f_word, e_word)) in enumerate(fe_count.keys()):
+  dice[(f_word,e_word)] = 2.0 * fe_count[(f_word, e_word)] / (f_count[f_word] + e_count[e_word])
   if k % 5000 == 0:
     sys.stderr.write(".")
 sys.stderr.write("\n")
 
 for (f, e) in bitext:
-  for (i, f_i) in enumerate(f): 
-    for (j, e_j) in enumerate(e):
-      if dice[(f_i,e_j)] >= opts.threshold:
+  for (i, f_word) in enumerate(f): 
+    for (j, e_word) in enumerate(e):
+      if dice[(f_word,e_word)] >= opts.threshold:
         sys.stdout.write("%i-%i " % (i,j))
   sys.stdout.write("\n")
+"""
