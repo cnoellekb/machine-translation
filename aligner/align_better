@@ -52,7 +52,28 @@ for epoch in range(epochs):
   # estimate probabilities 
   for (e_word,f_word) in ef_count:
     ef_trans_prob[(e_word,f_word)] = ef_count[(e_word,f_word)]/total_f[f_word]
+"""
+# calculate alignment probabilities
+for (k, (f, e)) in enumerate(bitext):
+  m = len(e)
+  l = len(f)
+  c1 = defaultdict(float) # c(j|i,l,m)
+  c2 = defaultdict(float) # c(i,l,m)
 
+  for i in range(1,m): # len of e
+    for j in range(l): # len of f
+      qsum = 0
+      for jsum in range(l):
+        qsum += q[(jsum,i,l,m)]*ef_trans_prob[(e[i],f[jsum])]
+
+      delta = q[(j,i,l,m)]*ef_trans_prob[(e[i],f[j])]/qsum
+
+      c1[(i,j,l,m)] += delta
+      c2[(j,l,m)] += delta
+
+  for (i,j,ll,mm) in c1:
+    q[(i,j,ll,mm)] += c1[(i,j,ll,mm)]/c2[(j,ll,mm)]
+"""
 for (f, e) in bitext:
   for (i, f_word) in enumerate(f): 
     for (j, e_word) in enumerate(e):
